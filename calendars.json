@@ -1,30 +1,38 @@
 [
   {
-    "name": "Aakash",
+    "name": "Akku",
     "url": "https://app.qgenda.com/ical?key=c7d07a13-e978-464c-bf50-42d8e92b9d8c"
   },
   {
-    "name": "Shantal",
+    "name": "Shanty",
     "url": "https://app.qgenda.com/ical?key=58e7e382-fbbb-494a-9636-a71d7db16cd4"
   },
   {
-    "name": "Scott",
+    "name": "ta'RELL",
     "url": "https://app.qgenda.com/ical?key=214b60f6-c47e-4053-a4d0-8ac27241e897"
   },
   {
-    "name": "Juhi",
+    "name": "Juju",
     "url": "https://app.qgenda.com/ical?key=5da8ed2a-8724-4e69-b97f-0ea1112c6caa"
   },
   {
-    "name": "Sarah",
+    "name": "Rah",
     "url": "https://app.qgenda.com/ical?key=b8a629c4-a48f-45dd-9045-758b7e42d3e5"
   },
   {
-    "name": "Griffin",
+    "name": "Griffy",
     "url": "https://app.qgenda.com/ical?key=769ffebd-c870-496b-b216-c3b1ec56c29e"
   },
   {
-    "name": "Natalie",
+    "name": "Nat",
     "url": "https://app.qgenda.com/ical?key=0b321f13-259d-437e-a9a8-57594877b9e1"
+  },
+  {
+    "name": "Meli",
+    "url": "https://app.qgenda.com/ical?key=6c73bd8f-4310-4919-a318-390a805f4cae"
+  },
+  {
+    "name": "Tabs",
+    "url": "https://app.qgenda.com/ical?key=c900a182-593a-4910-8784-bfdb66e773b1"
   }
 ]
