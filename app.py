@@ -63,7 +63,7 @@ events = load_events()
 def get_events():
     return jsonify(events)
 
-# === 3) UI with availability highlight & Deselect All ===
+# === 3) UI with availability highlight, select/deselect all ===
 INDEX_HTML = '''
 <!doctype html>
 <html>
@@ -75,11 +75,13 @@ INDEX_HTML = '''
     :root { --bg: #fff0f6; --fg: #333; --accent: #e91e63; --shift: #ff5722; --free: #4caf50; --header-bg: #ffffff; --row-alt: #ffeef8; --today-bg: rgba(233,30,99,0.1); --font-body: 'Inter',sans-serif; --font-heading: 'Poppins',sans-serif; --row-height: 32px; --font-small: 0.75em; }
     body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body); }
     header { position:sticky; top:0; background:var(--header-bg); padding:1rem; display:flex; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
-    header h1 { flex:none; font-family:var(--font-heading); color:var(--accent); }
-    .person-selector, .week-selector, .controls { margin-left:1rem; }
-    .person-selector label, .week-selector label { margin-right:0.5rem; font-weight:600; }
+    header h1 { font-family:var(--font-heading); color:var(--accent); margin-right:2rem; }
+    .person-controls { margin-right:1rem; }
+    .person-selector { display:flex; flex-wrap:wrap; align-items:center; }
+    .person-selector label { margin-right:0.5rem; font-weight:600; white-space:nowrap; }
     .person-selector input { margin-right:0.25rem; }
-    .controls button { font-size:0.9em; padding:0.25em 0.5em; border:none; background:var(--accent); color:#fff; border-radius:4px; cursor:pointer; }
+    .person-controls button { font-size:0.9em; padding:0.25em 0.5em; border:none; background:var(--accent); color:#fff; border-radius:4px; cursor:pointer; margin-right:0.5rem; }
+    .week-selector { margin-right:2rem; }
     .label { width:150px; flex:none; margin-right:1rem; }
     #scrollArea { max-height:calc(100vh - 100px); overflow-y:auto; padding:0.5rem; }
     .day-header { font-family:var(--font-heading); color:var(--accent); margin:1rem 0 0.5rem; }
@@ -95,16 +97,19 @@ INDEX_HTML = '''
     .row.today { background:var(--today-bg); }
     .shift { position:absolute; top:0; height:var(--row-height); background:var(--shift); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:var(--font-small); color:#fff; }
     .free-slot { position:absolute; top:0; height:var(--row-height); background:var(--free); opacity:0.4; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:var(--font-small); color:#fff; }
-    @media (max-width:600px) { .person-selector, .week-selector, .controls { width:100%; } }
+    @media (max-width:600px) { .person-selector, .person-controls, .week-selector { width:100%; } }
   </style>
 </head>
 <body>
   <header>
     <h1>Miami Baddies Work Shifts</h1>
     <div class="person-selector" id="personSelect"></div>
+    <div class="person-controls">
+      <button id="clearAll">Deselect All</button>
+      <button id="selectAll">Select All</button>
+    </div>
     <div class="week-selector"><label for="weekSelect">Week:</label><select id="weekSelect"></select></div>
-    <div class="controls"><button id="clearAll">Deselect All</button></div>
-    <div style="margin-left:2rem; font-size:0.9rem;"><p>🔎 Use the checkboxes to toggle team members’ shifts.<br>📆 Select the week from the dropdown.<br>📊 Scroll down to view schedules and highlighted free windows.</p></div>
+    <div style="font-size:0.9rem;"><p>🔎 Use the checkboxes to toggle team members’ shifts.📆 Select the week from the dropdown.📊 Scroll down to view schedules and highlighted free windows.</p></div>
   </header>
   <div id="scrollArea"><div id="contentArea"></div></div>
   <script src="https://unpkg.com/clusterize.js@0.18.1/clusterize.min.js"></script>
@@ -132,6 +137,10 @@ INDEX_HTML = '''
         document.querySelectorAll('#personSelect input').forEach(chk => chk.checked = false);
         renderWeek(document.getElementById('weekSelect').value);
       };
+      document.getElementById('selectAll').onclick = () => {
+        document.querySelectorAll('#personSelect input').forEach(chk => chk.checked = true);
+        renderWeek(document.getElementById('weekSelect').value);
+      };
       fetch('/events.json').then(r=>r.json()).then(data => {
         events = data.map(e => ({ person: e.person, date: e.date, segments: e.segments.map(s => ({ start: new Date(s.start), end: new Date(s.end), title: s.title })) }));
         events.forEach(e => {
@@ -144,8 +153,7 @@ INDEX_HTML = '''
         weekKeys.forEach(key => {
           const [y,mo,da] = key.split('-').map(Number);
           const start = new Date(y,mo-1,da);
-          const opt = document.createElement('option');
-          opt.value = key;
+          const opt = document.createElement('option'); opt.value = key;
           opt.textContent = `${formatDate(start)} – ${formatDate(new Date(start.getTime()+6*24*60*60*1000))}`;
           select.appendChild(opt);
         });
@@ -217,4 +225,3 @@ def index():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
-
