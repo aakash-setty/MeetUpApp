@@ -4,7 +4,10 @@ from icalendar import Calendar
 from datetime import datetime, date, time, timedelta
 import pytz
 import os
-import openai
+try:
+    import openai
+except ImportError:
+    openai = None  # OpenAI SDK not installed
 
 # === Configuration ===
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -105,6 +108,9 @@ def compute_free_windows(names, min_hours):
     return free_by_date
 
 @app.route('/parse-request', methods=['POST'])
+def parse_request():
+    if openai is None:
+        return jsonify({"answer":"Error: OpenAI Python library is not installed. Please install it via 'pip install openai'."}), 500
 def parse_request():
     data = request.get_json() or {}
     prompt = data.get('prompt','')
