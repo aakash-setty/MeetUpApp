@@ -192,7 +192,197 @@ INDEX_HTML = '''
   <div id="nlAnswer" style="padding:0.5rem 1rem;font-size:0.9rem;white-space:pre-line;"></div>
   <div id="scrollArea"><div id="contentArea"></div></div>
   <script src="https://unpkg.com/clusterize.js@0.18.1/clusterize.min.js"></script>
-  <script>/* ...JS same as before... */</script>
+  <script src="https://unpkg.com/clusterize.js@0.18.1/clusterize.min.js"></script>
+  <script>
+    const calendars = {{ calendars|tojson }};
+    const persons = calendars.map(c => c.name);
+    let events = [], weekGroups = {};
+    const todayDateKey = new Date().toISOString().split('T')[0];
+
+    function getMonday(d) {
+      const dt = new Date(d);
+      const day = dt.getDay();
+      return new Date(dt.setDate(dt.getDate() - day + (day === 0 ? -6 : 1)));
+    }
+
+    function formatKey(dt) {
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    }
+
+    function formatDate(d) {
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    function formatTime(h) {
+      const hr = Math.floor(h) % 24;
+      const pm = hr >= 12;
+      const hh = hr % 12 || 12;
+      const mm = Math.round((h - Math.floor(h)) * 60);
+      return `${hh}${mm ? ':' + String(mm).padStart(2, '0') : ''}${pm ? 'pm' : 'am'}`;
+    }
+
+    function init() {
+      // Person checkboxes
+      const personDiv = document.getElementById('personSelect');
+      persons.forEach(name => {
+        const lbl = document.createElement('label');
+        const chk = document.createElement('input');
+        chk.type = 'checkbox'; chk.value = name; chk.checked = true;
+        chk.onchange = () => renderWeek(document.getElementById('weekSelect').value);
+        lbl.appendChild(chk);
+        lbl.appendChild(document.createTextNode(name));
+        personDiv.appendChild(lbl);
+      });
+
+      // Select/Deselect all
+      document.getElementById('clearAll').onclick = () => {
+        document.querySelectorAll('#personSelect input').forEach(chk => chk.checked = false);
+        renderWeek(document.getElementById('weekSelect').value);
+      };
+      document.getElementById('selectAll').onclick = () => {
+        document.querySelectorAll('#personSelect input').forEach(chk => chk.checked = true);
+        renderWeek(document.getElementById('weekSelect').value);
+      };
+
+      // NLP submit
+      document.getElementById('nlSubmit').onclick = () => {
+        const prompt = document.getElementById('nlInput').value;
+        if (!prompt) return;
+        fetch('/parse-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        })
+        .then(r => r.json())
+        .then(json => {
+          document.getElementById('nlAnswer').textContent = json.answer;
+        });
+      };
+
+      // Load events and prepare weeks
+      fetch('/events.json')
+        .then(r => r.json())
+        .then(data => {
+          events = data.map(e => ({
+            person: e.person,
+            date: e.date,
+            segments: e.segments.map(s => ({
+              start: new Date(s.start),
+              end: new Date(s.end),
+              title: s.title
+            }))
+          }));
+
+          events.forEach(e => {
+            const [y, mo, da] = e.date.split('-').map(Number);
+            const wkKey = formatKey(getMonday(new Date(y, mo - 1, da)));
+            (weekGroups[wkKey] = weekGroups[wkKey] || []).push(e);
+          });
+
+          const weekKeys = Object.keys(weekGroups).sort();
+          const select = document.getElementById('weekSelect');
+          weekKeys.forEach(key => {
+            const [y, mo, da] = key.split('-').map(Number);
+            const start = new Date(y, mo - 1, da);
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = `${formatDate(start)} – ${formatDate(new Date(start.getTime() + 6 * 86400000))}`;
+            select.appendChild(opt);
+          });
+
+          const today = new Date();
+          const todayWeekKey = formatKey(getMonday(today));
+          select.value = weekKeys.includes(todayWeekKey) ? todayWeekKey : weekKeys[0];
+          select.onchange = () => renderWeek(select.value);
+
+          window.clusterize = new Clusterize({
+            scrollId: 'scrollArea',
+            contentId: 'contentArea',
+            rows: []
+          });
+
+          renderWeek(select.value);
+        });
+    }
+
+    function renderWeek(key) {
+      const checked = Array.from(document.querySelectorAll('#personSelect input:checked')).map(i => i.value);
+      const rows = [];
+      const weekEvents = weekGroups[key] || [];
+
+      for (let i = 0; i < 7; i++) {
+        const [y, mo, da] = key.split('-').map(Number);
+        const d = new Date(y, mo - 1, da + i);
+        const dateKey = d.toISOString().split('T')[0];
+        const isToday = dateKey === todayDateKey;
+
+        // Day header
+        rows.push(
+          `<div class="day-header${isToday ? ' today' : ''}">${d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>`
+        );
+
+        // Compute busy/free
+        let busy = [];
+        checked.forEach(person => {
+          const rec = weekEvents.find(e => e.person === person && e.date === dateKey);
+          if (rec) rec.segments.forEach(s => {
+            busy.push([s.start.getHours() + s.start.getMinutes() / 60, s.end.getHours() + s.end.getMinutes() / 60]);
+          });
+        });
+        busy.sort((a, b) => a[0] - b[0]);
+        const merged = [];
+        busy.forEach(iv => {
+          if (merged.length && iv[0] <= merged[merged.length - 1][1]) {
+            merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], iv[1]);
+          } else {
+            merged.push([iv[0], iv[1]]);
+          }
+        });
+        const free = [];
+        let le = 0;
+        merged.forEach(iv => {
+          if (iv[0] - le >= 2) free.push([le, iv[0]]);
+          le = iv[1];
+        });
+        if (24 - le >= 2) free.push([le, 24]);
+
+        // Hour row with free slots and markers
+        let hr = `<div class="hour-row${isToday ? ' today' : ''}"><div class="label"></div><div class="timeline">`;
+        [6, 12, 18].forEach(h => {
+          hr += `<span class="hour-label" style="left:${(h/24*100).toFixed(2)}%">${h % 12 || 12}${h < 12 ? 'am' : 'pm'}</span>`;
+        });
+        free.forEach(f => {
+          const left = (f[0] / 24 * 100).toFixed(2) + '%';
+          const width = ((f[1] - f[0]) / 24 * 100).toFixed(2) + '%';
+          const label = `${formatTime(f[0])} - ${formatTime(f[1])}`;
+          hr += `<div class="free-slot" style="left:${left};width:${width}">${label}</div>`;
+        });
+        hr += `</div></div>`;
+        rows.push(hr);
+
+        // Person rows
+        checked.forEach(person => {
+          const rec = weekEvents.find(e => e.person === person && e.date === dateKey);
+          let html = '<div class="timeline">';
+          if (rec) rec.segments.forEach(s => {
+            const sh = s.start.getHours() + s.start.getMinutes() / 60;
+            const eh = s.end.getHours() + s.end.getMinutes() / 60;
+            const left = (sh / 24 * 100).toFixed(2) + '%';
+            const width = ((eh - sh) / 24 * 100).toFixed(2) + '%';
+            html += `<div class="shift" style="left:${left};width:${width}">${s.title}</div>`;
+          });
+          html += '</div>';
+          rows.push(
+            `<div class="row${isToday ? ' today' : ''}"><div class="label">${person}</div>${html}</div>`
+          );
+        });
+      }
+
+      window.clusterize.update(rows);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
 </body></html>
 '''
 
